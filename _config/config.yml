@@ -1,0 +1,6 @@
+---
+Name: authoring_configuration
+---
+PageController:
+  extensions:
+    - Symbiote\FrontendEditing\FrontendAuthoringController
