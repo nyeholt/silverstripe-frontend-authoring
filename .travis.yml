@@ -1,0 +1,126 @@
+# NOTE(Jake): 2018-07-25
+#
+#
+# For a less stale example of a SilverStripe 4 .travis.yml file, I suggest seeing
+# what UserForms is doing:
+# - https://github.com/silverstripe/silverstripe-userforms/blob/master/.travis.yml
+#
+
+# Additional SilverStripe 3.X info
+# See: https://github.com/silverstripe-labs/silverstripe-travis-support for setup details and example of testing OPTIONAL modules
+
+language: php
+
+php:
+  # Silverstripe 3.x
+  # NOTE: Travis-CI is only supporting PHP 5.4+ from late 2017.
+  - 5.4
+  # Silverstripe 4
+  - 5.6
+
+env:
+  matrix:
+    #
+    # Silverstripe 3.x
+    #
+    - DB=MYSQL CORE_RELEASE=3.1
+    # Silverstripe 4
+    #
+    - DB=MYSQL CORE_RELEASE=4
+
+matrix:
+  include:
+    #
+    # Silverstripe 3.x
+    #
+    - php: 5.4
+      env:
+        - DB=MYSQL
+        - CORE_RELEASE=3.1
+    - php: 5.4
+      env:
+        - DB=PGSQL
+        - CORE_RELEASE=3.2
+    - php: 5.5
+      env:
+        - DB=MYSQL
+        - CORE_RELEASE=3.3
+    - php: 5.6
+      env:
+        - DB=MYSQL
+        - PHPCS_TEST=1
+        - CORE_RELEASE=3
+    #
+    # Silverstripe 4
+    #
+    - php: 5.6
+      env:
+        - RECIPE_VERSION=1.0.x-dev
+        - DB=MYSQL
+        - PHPCS_TEST=1
+        #- MULTISITES_VERSION=5.0.3
+    - php: 7.0
+      env:
+        - RECIPE_VERSION=1.1.x-dev
+        # NOTE(Jake): 2018-08-17
+        #
+        # In cases where Travis-ci fails due to upstream bugs in silverstripe-postgressql
+        # I simply change this to MYSQL.
+        #
+        - DB=PGSQL
+        #- MULTISITES_VERSION=5.0.3
+    - php: 7.1
+      env:
+        - RECIPE_VERSION=4.2.x-dev
+        - DB=MYSQL
+        - PDO=1
+        #- MULTISITES_VERSION=5.0.3
+    - php: 7.2
+      env:
+        - RECIPE_VERSION=4.x-dev
+        - DB=MYSQL
+        - PDO=1
+        #- MULTISITES_VERSION=5.0.3
+
+before_script:
+  #
+  # Silverstripe 3
+  #
+  - composer self-update || true
+  - phpenv rehash
+  - git clone git://github.com/silverstripe-labs/silverstripe-travis-support.git ~/travis-support
+  - php ~/travis-support/travis_setup.php --source `pwd` --target ~/builds/ss
+  - cd ~/builds/ss
+
+  #
+  # Silverstripe 4
+  #
+  - phpenv rehash
+  - phpenv config-rm xdebug.ini
+  - composer validate
+  - composer require --no-update silverstripe/recipe-cms:$RECIPE_VERSION
+  - if [[ $DB == PGSQL ]]; then composer require --no-update silverstripe/postgresql:2.0.x-dev; fi
+  - composer install --prefer-dist --no-interaction --no-progress --no-suggest --optimize-autoloader --verbose --profile
+
+script:
+  #
+  # Silverstripe 3
+  #
+  - if [[ $PHPCS_TEST ]]; then vendor/bin/phpcs YOUR_MODULE_NAME/src/ YOUR_MODULE_NAME/tests/ -n; fi
+  - vendor/bin/phpunit YOUR_MODULE_NAME/tests/
+  #
+  # Silverstripe 4
+  #
+  - if [[ $PHPCS_TEST ]]; then vendor/bin/phpcs src/ tests/ -n; fi
+  - vendor/bin/phpunit
+  # SilverStripe 4 - Multisite specific tests
+  #
+  # TreeHugger is using this in the wild
+  # - https://github.com/symbiote/silverstripe-treehugger/blob/c2f6c514b8fd8b08b12aee7cba03746a718e6784/.travis.yml#L64
+  # Its also doing a class_exists check in the following code in setUp() to skip tests for builds without Multisites installed. (ie. the default)
+  # - https://github.com/symbiote/silverstripe-treehugger/blob/c2f6c514b8fd8b08b12aee7cba03746a718e6784/tests/SortableMenuMultisitesTest.php
+  #
+  # Finally, if you dig through older versions of TreeHugger (1.X), you will find out how to do this for SilverStripe 3 builds as well.
+  #
+  #- if [[ $MULTISITES_VERSION ]]; then composer require symbiote/silverstripe-multisites:$MULTISITES_VERSION; fi
+  #- if [[ $MULTISITES_VERSION ]]; then vendor/bin/phpunit tests/[YOUR_MULTISITES_SPECIFIC_TEST_HERE_REPLACE_ME] '' flush=all; fi
