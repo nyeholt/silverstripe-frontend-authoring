@@ -1,5 +1,5 @@
 {
-    "name": "symbiote/silverstripe-frontend-editing",
+    "name": "symbiote/silverstripe-frontend-authoring",
     "description": "Provides frontend editing capabilities for SilverStripe pages",
     "type": "silverstripe-vendormodule",
     "keywords": [
