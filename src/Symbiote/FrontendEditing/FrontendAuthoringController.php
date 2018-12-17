@@ -25,7 +25,8 @@ class FrontendAuthoringController extends Extension
         'AuthoringForm' => 'CMS_ACCESS_CMSMain',
     ];
 
-    public function AuthoringLink() {
+    public function AuthoringLink()
+    {
         $link = $this->owner->Link();
 
         return Controller::join_links($link, 'edit');
@@ -43,16 +44,13 @@ class FrontendAuthoringController extends Extension
             return $this->owner->httpError(403);
         }
 
-        return [
-            'Form' => $this->AuthoringForm()
-        ];
-
         return $this->owner->customise([
             'Form' => $this->AuthoringForm()
-        ])->renderWith(['FrontendAuthoringEdit']);
+        ])->renderWith(['FrontendAuthoringEdit_edit', 'Page']);
     }
 
-    public function AuthoringForm() {
+    public function AuthoringForm()
+    {
         Versioned::set_stage('Stage');
 
         $object = $this->owner->data();
@@ -61,13 +59,13 @@ class FrontendAuthoringController extends Extension
         // reload in the correct stage
         $object = $cls::get()->byID($object->ID);
 
-		$fields = FieldList::create(
-			TextField::create('Title', _t('FrontendCreate.TITLE', 'Title'))
+        $fields = FieldList::create(
+            TextField::create('Title', _t('FrontendCreate.TITLE', 'Title'))
         );
 
         if ($object instanceof Member) {
             $fields = $object->getMemberFormFields();
-        } else  {
+        } else {
             $fields = $object->getFrontEndFields();
         }
 
@@ -78,7 +76,7 @@ class FrontendAuthoringController extends Extension
 
         // and a publish
         if ($object->hasExtension(Versioned::class)) {
-            $fields->push(CheckboxField::create('publish_on_save', 'Publish on save'));
+            $actions->push(FormAction::create('publishobject', 'Save and Publish'));
         }
 
         $validator = ($object && $object->hasMethod('getFrontendCreateValidator')) ? $object->getFrontendCreateValidator() : RequiredFields::create(['Title']);
@@ -94,7 +92,14 @@ class FrontendAuthoringController extends Extension
         return $form;
     }
 
-    public function saveobject($data, Form $form, HTTPRequest $req) {
+    public function saveobject($data, Form $form, HTTPRequest $req)
+    {
+        $this->processForm($data, $form, $req);
+        return $this->owner->redirect($this->owner->AuthoringLink());
+    }
+
+    protected function processForm($data, Form $form, HTTPRequest $req)
+    {
         Versioned::set_stage('Stage');
         $object = $this->owner->data();
         if (!($object instanceof DataObject)) {
@@ -114,10 +119,17 @@ class FrontendAuthoringController extends Extension
 
         $object->write();
 
-        if (isset($data['publish_on_save']) && $data['publish_on_save']) {
-            $object->publish();
-        }
+        return $object;
+    }
 
-        return $this->owner->redirect($object->Link());
+    public function publishobject($data, Form $form, HTTPRequest $req)
+    {
+        $object = $this->processForm($data, $form, $req);
+
+        if ($object->canPublish()) {
+            $object->publishRecursive();
+        }
+        Versioned::set_stage(Versioned::LIVE);
+        return $this->owner->redirect($this->owner->Link());
     }
 }
