@@ -15,6 +15,8 @@ use SilverStripe\Forms\FormAction;
 use SilverStripe\Control\HTTPRequest;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\ORM\DataObject;
+use SilverStripe\ORM\FieldType\DBHTMLText;
+use SilverStripe\View\Parsers\URLSegmentFilter;
 
 
 class FrontendAuthoringController extends Extension
@@ -98,6 +100,17 @@ class FrontendAuthoringController extends Extension
         return $this->owner->redirect($this->owner->AuthoringLink());
     }
 
+    public function publishobject($data, Form $form, HTTPRequest $req)
+    {
+        $object = $this->processForm($data, $form, $req);
+
+        if ($object->canPublish()) {
+            $object->publishRecursive();
+        }
+        Versioned::set_stage(Versioned::LIVE);
+        return $this->owner->redirect($this->owner->Link());
+    }
+
     protected function processForm($data, Form $form, HTTPRequest $req)
     {
         Versioned::set_stage('Stage');
@@ -111,6 +124,7 @@ class FrontendAuthoringController extends Extension
 
         try {
             $form->saveInto($object);
+            $this->analyseNewPagesUnder($object);
         } catch (ValidationException $ve) {
             $form->sessionMessage("Could not upload file: " . $ve->getMessage(), 'bad');
             $this->redirect($this->data()->Link());
@@ -122,14 +136,57 @@ class FrontendAuthoringController extends Extension
         return $object;
     }
 
-    public function publishobject($data, Form $form, HTTPRequest $req)
-    {
-        $object = $this->processForm($data, $form, $req);
+    protected function analyseNewPagesUnder($object) {
+        // check changed fields, looking for HTML text fields
+        foreach ($object->getChangedFields(true) as $field => $changes) {
+            $type = $object->obj($field);
+            $cls = $object->ClassName;
+            if ($type instanceof DBHTMLText) {
+                $content = $object->$field;
+                $pageLinks = $this->parseLinksFrom($content);
 
-        if ($object->canPublish()) {
-            $object->publishRecursive();
+                $replacements = [];
+
+                foreach ($pageLinks as $slug => $title) {
+                    if (strlen($slug) === 0) {
+                        $slug = $title;
+                    }
+                    $slug = URLSegmentFilter::create()->filter($slug);
+                    $existing = \Page::get()->filter([
+                        'ParentID' => $object->ID,
+                        'URLSegment' => $slug,
+                    ])->first();
+                    if (!$existing) {
+                        $existing = $cls::create([
+                            'Title' => $title,
+                            'URLSegment' => $slug,
+                            'ParentID' => $object->ID,
+                        ]);
+                        $existing->write();
+                    }
+                    $link = '<a href="[sitetree_link,id=' . $existing->ID . ']">' . $title . '</a>';
+                    $replacements["[$title]()"] = $link;
+                    $replacements["[$title]($slug)"] = $link;
+                }
+                $object->$field = str_replace(array_keys($replacements), array_values($replacements), $content);
+            }
         }
-        Versioned::set_stage(Versioned::LIVE);
-        return $this->owner->redirect($this->owner->Link());
     }
+
+    protected function parseLinksFrom($content) {
+		$pages = array();
+		if (preg_match_all('/\[([\w\d\s_.-]+)\]\(([\w\d_-]+)?\)/', $content, $matches)) {
+            // exit(print_r($matches));
+            $i = 0;
+			for ($i = 0, $c = count($matches[1]); $i < $c; $i++) {
+                $slug = $matches[2][$i];
+                $title = $matches[1][$i];
+                if (strlen($slug) === 0) {
+                    $slug = $title;
+                }
+				$pages[$slug] = $title;
+			}
+		}
+		return $pages;
+	}
 }
