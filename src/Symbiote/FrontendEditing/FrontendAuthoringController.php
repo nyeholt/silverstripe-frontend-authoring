@@ -17,6 +17,7 @@ use SilverStripe\Forms\CheckboxField;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\FieldType\DBHTMLText;
 use SilverStripe\View\Parsers\URLSegmentFilter;
+use nglasl\mediawesome\MediaPage;
 
 
 class FrontendAuthoringController extends Extension
@@ -25,6 +26,18 @@ class FrontendAuthoringController extends Extension
     private static $allowed_actions = [
         'edit' => 'CMS_ACCESS_CMSMain',
         'AuthoringForm' => 'CMS_ACCESS_CMSMain',
+    ];
+
+    /**
+     * What types should child pages be created as, for a given type?
+     */
+    private static $page_create_types = [];
+
+    /**
+     * Where should pages be created? as children or siblings?
+     */
+    private static $page_create_parent_field = [
+        MediaPage::class => 'ParentID',
     ];
 
     public function AuthoringLink()
@@ -73,8 +86,10 @@ class FrontendAuthoringController extends Extension
 
         $fields->push(HiddenField::create('ID', 'ID', $object->ID));
 
-        $action = FormAction::create('saveobject', 'Save Changes');
-        $actions = FieldList::create([$action]);
+        $actions = FieldList::create([
+            FormAction::create('done', 'Close without saving'),
+            FormAction::create('saveobject', 'Save Changes')
+        ]);
 
         // and a publish
         if ($object->hasExtension(Versioned::class)) {
@@ -92,6 +107,11 @@ class FrontendAuthoringController extends Extension
         }
 
         return $form;
+    }
+
+    public function done()
+    {
+        return $this->owner->redirect($this->owner->Link());
     }
 
     public function saveobject($data, Form $form, HTTPRequest $req)
@@ -124,23 +144,33 @@ class FrontendAuthoringController extends Extension
 
         try {
             $form->saveInto($object);
-            $this->analyseNewPagesUnder($object);
+            $changed = $object->getChangedFields(true);
+            $object->write();
+            $this->analyseNewPagesUnder($object, $changed);
+            $object->write();
         } catch (ValidationException $ve) {
             $form->sessionMessage("Could not upload file: " . $ve->getMessage(), 'bad');
             $this->redirect($this->data()->Link());
             return;
         }
 
-        $object->write();
-
         return $object;
     }
 
-    protected function analyseNewPagesUnder($object) {
+    protected function analyseNewPagesUnder($object, $fields)
+    {
+        $parentFieldMapping = $this->owner->config()->page_create_parent_field;
+
         // check changed fields, looking for HTML text fields
-        foreach ($object->getChangedFields(true) as $field => $changes) {
+        foreach ($fields as $field => $changes) {
             $type = $object->obj($field);
             $cls = $object->ClassName;
+
+            // see whether we have a specific parent ID field
+            $parentIdField = isset($parentFieldMapping[$cls]) ? $parentFieldMapping[$cls] : 'ID';
+
+            $parentId = $object->$parentIdField;
+
             if ($type instanceof DBHTMLText) {
                 $content = $object->$field;
                 $pageLinks = $this->parseLinksFrom($content);
@@ -153,14 +183,14 @@ class FrontendAuthoringController extends Extension
                     }
                     $slug = URLSegmentFilter::create()->filter($slug);
                     $existing = \Page::get()->filter([
-                        'ParentID' => $object->ID,
+                        'ParentID' => $parentId,
                         'URLSegment' => $slug,
                     ])->first();
                     if (!$existing) {
                         $existing = $cls::create([
                             'Title' => $title,
                             'URLSegment' => $slug,
-                            'ParentID' => $object->ID,
+                            'ParentID' => $parentId,
                         ]);
                         $existing->write();
                     }
@@ -173,20 +203,21 @@ class FrontendAuthoringController extends Extension
         }
     }
 
-    protected function parseLinksFrom($content) {
-		$pages = array();
-		if (preg_match_all('/\[([\w\d\s_.-]+)\]\(([\w\d_-]+)?\)/', $content, $matches)) {
+    protected function parseLinksFrom($content)
+    {
+        $pages = array();
+        if (preg_match_all('/\[([\w\d\s_.-]+)\]\(([\w\d_-]+)?\)/', $content, $matches)) {
             // exit(print_r($matches));
             $i = 0;
-			for ($i = 0, $c = count($matches[1]); $i < $c; $i++) {
+            for ($i = 0, $c = count($matches[1]); $i < $c; $i++) {
                 $slug = $matches[2][$i];
                 $title = $matches[1][$i];
                 if (strlen($slug) === 0) {
                     $slug = $title;
                 }
-				$pages[$slug] = $title;
-			}
-		}
-		return $pages;
-	}
+                $pages[$slug] = $title;
+            }
+        }
+        return $pages;
+    }
 }
