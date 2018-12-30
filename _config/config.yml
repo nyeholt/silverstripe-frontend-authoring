@@ -4,3 +4,7 @@ Name: authoring_configuration
 PageController:
   extensions:
     - Symbiote\FrontendEditing\FrontendAuthoringController
+
+SilverStripe\Control\Director:
+  rules:
+    'frontend-authoring/tree': Symbiote\FrontendEditing\SimpleTreeController
