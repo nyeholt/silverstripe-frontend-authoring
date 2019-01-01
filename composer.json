@@ -40,9 +40,9 @@
             "dev-master": "1.0.x-dev"
         },
         "expose": [
-          "client/script"
+          "client/images"
         ],
-        "installer-name": "frontend-editing"
+        "installer-name": "frontend-authoring"
     },
     "prefer-stable": true,
     "minimum-stability": "dev"

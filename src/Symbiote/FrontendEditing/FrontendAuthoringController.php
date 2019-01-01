@@ -18,6 +18,11 @@ use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\FieldType\DBHTMLText;
 use SilverStripe\View\Parsers\URLSegmentFilter;
 use nglasl\mediawesome\MediaPage;
+use SilverStripe\View\Parsers\HTMLValue;
+use SilverStripe\Assets\Upload;
+use SilverStripe\Core\Injector\Injector;
+use SilverStripe\Assets\Image;
+use SilverStripe\Assets\Folder;
 
 
 class FrontendAuthoringController extends Extension
@@ -146,7 +151,7 @@ class FrontendAuthoringController extends Extension
             $form->saveInto($object);
             $changed = $object->getChangedFields(true);
             $object->write();
-            $this->analyseNewPagesUnder($object, $changed);
+            $this->analyseContentUpdates($object, $changed);
             $object->write();
         } catch (ValidationException $ve) {
             $form->sessionMessage("Could not upload file: " . $ve->getMessage(), 'bad');
@@ -157,7 +162,7 @@ class FrontendAuthoringController extends Extension
         return $object;
     }
 
-    protected function analyseNewPagesUnder($object, $fields)
+    protected function analyseContentUpdates($object, $fields)
     {
         $parentFieldMapping = $this->owner->config()->page_create_parent_field;
 
@@ -173,6 +178,10 @@ class FrontendAuthoringController extends Extension
 
             if ($type instanceof DBHTMLText) {
                 $content = $object->$field;
+
+                // now parse any uploaded images out
+                $content = $this->parsePastedImages($content, $object);
+
                 $pageLinks = $this->parseLinksFrom($content);
 
                 $replacements = [];
@@ -198,9 +207,62 @@ class FrontendAuthoringController extends Extension
                     $replacements["[$title]()"] = $link;
                     $replacements["[$title]($slug)"] = $link;
                 }
-                $object->$field = str_replace(array_keys($replacements), array_values($replacements), $content);
+                $content = str_replace(array_keys($replacements), array_values($replacements), $content);
+
+                $object->$field = $content;
             }
         }
+    }
+
+    protected function parsePastedImages($content, $context)
+    {
+        $dom = HTMLValue::create($content);
+
+        foreach ($dom->query('//img') as $el) {
+            $raw = $el->getAttribute('src');
+            if (substr($raw, 0, strlen('data:image/png;base64,')) === 'data:image/png;base64,') {
+                $title = $el->getAttribute('title');
+                if (!$title) {
+                    $title = 'upload';
+                }
+                $filename = URLSegmentFilter::create()->filter($title) . '.png'; // 'upload.png' : $this->owner->data()->Title . '-upload.png';
+
+                $base64 = substr($raw, strlen('data:image/png;base64,'));
+                $tempFilePath = tempnam(TEMP_PATH, 'png');
+                file_put_contents($tempFilePath, base64_decode($base64));
+                // create a new file and replace the src.
+                //data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABeEAAAL2CAYAAADGqF0yAAAABHNCSVQICAgIfAhkiAAAIABJREFUeF7s3Q9clfXd
+
+                $image = Image::create();
+                $path = $context ? $context->RelativeLink() : 'Uploads';
+
+                // $parent = Folder::find_or_make($path);
+                // $image->ParentID = $parent->ID;
+                $tempFile = [
+                    'size' => strlen($raw),
+                    'name' => $filename,
+                    'tmp_name' => $tempFilePath
+                ];
+
+                $upload = Upload::create();
+                $upload->setValidator(Injector::inst()->create(ContentUploadValidator::class));
+
+                $result = $upload->loadIntoFile($tempFile, $image, $path);
+                $file = $upload->getFile();
+                if ($file && $file->ID) {
+                    $el->setAttribute('src', $file->getURL());
+                    $el->setAttribute('data-id', $file->ID);
+                    $el->setAttribute('data-shortcode', 'image');
+                }
+                if (file_exists($tempFilePath)) {
+                    @unlink($tempFile);
+                }
+
+            }
+        }
+
+        $content = $dom->getContent();
+        return $content;
     }
 
     protected function parseLinksFrom($content)

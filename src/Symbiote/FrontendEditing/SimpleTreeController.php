@@ -7,6 +7,8 @@ use SilverStripe\Core\Convert;
 use SilverStripe\CMS\Model\SiteTree;
 use SilverStripe\Control\Controller;
 use SilverStripe\Assets\File;
+use SilverStripe\Core\Manifest\ModuleResourceLoader;
+use SilverStripe\Assets\Image;
 
 
 /**
@@ -88,14 +90,19 @@ class SimpleTreeController extends Controller
                     }
 
                     $thumbs = null;
-                    if ($child->ClassName == 'Image') {
+                    if ($child->ClassName == Image::class) {
                         $thumbs = $this->generateThumbnails($child);
-                        $nodeData['icon'] = $thumbs['x16'];
+                        $nodeData['icon'] = $thumbs['x32'];
                     } else if (!$haskids) {
-                        $nodeData['icon'] = 'frontend-editing/images/page.png';
+                        // $nodeData['icon'] = ModuleResourceLoader::singleton()->resolvePath('symbiote/silverstripe-frontend-authoring: client/images/page.png');
+                        $nodeData['icon'] = 'resources/symbiote/silverstripe-frontend-authoring/client/images/page.png';
                     }
 
                     $nodeData['children'] = $haskids;
+
+                    $nodeData['data'] = [
+                        'link' => $child instanceof File ? $child->getURL() :  $child->RelativeLink()
+                    ];
 
                     // $nodeEntry = array(
                     //     'attributes' => array('id' => $child->ClassName . '-' . $child->ID, 'text' => Convert::raw2att($nodeData['text']), 'link' => $child->RelativeLink()),
@@ -125,6 +132,7 @@ class SimpleTreeController extends Controller
     {
         $thumbs = array();
         $thumbs['x16'] = $image->Fit(16, 16)->Link();
+        $thumbs['x32'] = $image->Fit(32, 32)->Link();
         $thumbs['x128'] = $image->Fit(128, 128)->Link();
         return $thumbs;
     }
