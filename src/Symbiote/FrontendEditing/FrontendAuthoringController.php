@@ -23,6 +23,7 @@ use SilverStripe\Assets\Upload;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Image;
 use SilverStripe\Assets\Folder;
+use SilverStripe\View\Requirements;
 
 
 class FrontendAuthoringController extends Extension
@@ -73,6 +74,10 @@ class FrontendAuthoringController extends Extension
     {
         Versioned::set_stage('Stage');
 
+        Requirements::javascript('symbiote/silverstripe-frontend-authoring: client/script/wretch-1.4.2.min.js');
+        Requirements::javascript('symbiote/silverstripe-frontend-authoring: client/script/authoring.js');
+
+
         $object = $this->owner->data();
 
         $cls = $object->ClassName;
@@ -122,7 +127,12 @@ class FrontendAuthoringController extends Extension
     public function saveobject($data, Form $form, HTTPRequest $req)
     {
         $this->processForm($data, $form, $req);
-        return $this->owner->redirect($this->owner->AuthoringLink());
+        if ($req->isAjax()) {
+            $this->owner->getResponse()->addHeader('Content-Type', 'application/json');
+            return json_encode(['success' => 1]);
+        } else {
+            return $this->owner->redirect($this->owner->AuthoringLink());
+        }
     }
 
     public function publishobject($data, Form $form, HTTPRequest $req)
@@ -239,6 +249,7 @@ class FrontendAuthoringController extends Extension
                 // $parent = Folder::find_or_make($path);
                 // $image->ParentID = $parent->ID;
                 $tempFile = [
+                    'error' => '',
                     'size' => strlen($raw),
                     'name' => $filename,
                     'tmp_name' => $tempFilePath
