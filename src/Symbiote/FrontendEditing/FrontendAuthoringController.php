@@ -37,7 +37,9 @@ class FrontendAuthoringController extends Extension
     /**
      * What types should child pages be created as, for a given type?
      */
-    private static $page_create_types = [];
+    private static $page_create_types = [
+
+    ];
 
     /**
      * Where should pages be created? as children or siblings?
@@ -175,6 +177,7 @@ class FrontendAuthoringController extends Extension
     protected function analyseContentUpdates($object, $fields)
     {
         $parentFieldMapping = $this->owner->config()->page_create_parent_field;
+        $classMapping = $this->owner->config()->page_create_types;
 
         // check changed fields, looking for HTML text fields
         foreach ($fields as $field => $changes) {
@@ -183,6 +186,7 @@ class FrontendAuthoringController extends Extension
 
             // see whether we have a specific parent ID field
             $parentIdField = isset($parentFieldMapping[$cls]) ? $parentFieldMapping[$cls] : 'ID';
+            $newClassType = isset($classMapping[$cls]) ? $classMapping[$cls] : $cls;
 
             $parentId = $object->$parentIdField;
 
@@ -206,7 +210,7 @@ class FrontendAuthoringController extends Extension
                         'URLSegment' => $slug,
                     ])->first();
                     if (!$existing) {
-                        $existing = $cls::create([
+                        $existing = $newClassType::create([
                             'Title' => $title,
                             'URLSegment' => $slug,
                             'ParentID' => $parentId,

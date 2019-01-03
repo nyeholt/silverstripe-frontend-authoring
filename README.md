@@ -1,20 +1,18 @@
 # Frontend Editing
 
 
-[![Build Status](https://travis-ci.org/symbiote/silverstripe-frontend-editing.svg?branch=master)](https://travis-ci.org/symbiote/silverstripe-frontend-editing)
-[![Latest Stable Version](https://poser.pugx.org/symbiote/silverstripe-frontend-editing/version.svg)](https://github.com/symbiote/silverstripe-frontend-editing/releases)
-[![Latest Unstable Version](https://poser.pugx.org/symbiote/silverstripe-frontend-editing/v/unstable.svg)](https://packagist.org/packages/symbiote/silverstripe-frontend-editing)
-[![Total Downloads](https://poser.pugx.org/symbiote/silverstripe-frontend-editing/downloads.svg)](https://packagist.org/packages/symbiote/silverstripe-frontend-editing)
-[![License](https://poser.pugx.org/symbiote/silverstripe-frontend-editing/license.svg)](https://github.com/symbiote/silverstripe-frontend-editing/blob/master/LICENSE.md)
+[![Build Status](https://travis-ci.org/symbiote/silverstripe-frontend-authoring.svg?branch=master)](https://travis-ci.org/nyeholt/silverstripe-frontend-editauthoringing)
+[![Latest Stable Version](https://poser.pugx.org/symbiote/silverstripe-frontend-authoring/version.svg)](https://github.com/nyeholt/silverstripe-frontend-authoring/releases)
+[![Latest Unstable Version](https://poser.pugx.org/symbiote/silverstripe-frontend-authoring/v/unstable.svg)](https://packagist.org/packages/symbiote/silverstripe-frontend-authoring)
+[![Total Downloads](https://poser.pugx.org/symbiote/silverstripe-frontend-authoring/downloads.svg)](https://packagist.org/packages/symbiote/silverstripe-frontend-authoring)
+[![License](https://poser.pugx.org/symbiote/silverstripe-frontend-authoring/license.svg)](https://github.com/nyeholt/silverstripe-frontend-authoring/blob/master/LICENSE.md)
 
 Adds frontend editing capability
-
-![TODO_CHANGE_THIS](docs/images/main.png)
 
 ## Composer Install
 
 ```
-composer require symbiote/silverstripe-newmodule:~1.0
+composer require symbiote/silverstripe-frontend-authoring:~1.0
 ```
 
 ## Requirements
@@ -30,5 +28,23 @@ fields appropriate for editing your content.
 
 When editing, you can use the following shortcuts;
 
-* Page creation - enter `[Page Title](my-custom-slug)`, or simplified as `[Page Title]()` for the slug to be generated
+* Page creation - enter `[Page Title](my-custom-slug)`, or simplified as 
+  `[Page Title]()` for the slug to be generated
+
+### Configuration
+
+You can set the following properties
+
+* page_create_types: The type of the page to create when adding a page using the []() syntax. 
+  The key is the 'current' page, the value the page type to create
+* page_create_parent_field: The field to use of the 'current' page for newly created pages'
+  "parent". Defaults to ID
+
+```
+MyController:
+  page_create_types:
+    Symbiote\Page\NewsHolder: Symbiote\Page\NewsPage
+  page_create_parent_field:
+    Symbiote\Page\MyPage: ParentID
+```
 
