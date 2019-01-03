@@ -2,6 +2,8 @@ if (!window.jQuery) {
     console.log("Some features have been disabled as jQuery was not found");
 }
 
+const TIMEOUT = 45;
+
 var form = document.getElementById('Form_AuthoringForm');
 if (form) {
     var changed_form = false;
@@ -32,7 +34,8 @@ if (form) {
         }
 
         const w = wretch().content("application/x-www-form-urlencoded");
-        w.url(form.getAttribute('action')).body(serialize(form) + '&action_saveobject=Save&ajax=1').post().res(function (data) {
+        const response = w.url(form.getAttribute('action')).body(serialize(form) + '&action_saveobject=Save&ajax=1').post();
+        response.res(function (data) {
             if (submitButton.nodeName.toUpperCase() == 'INPUT') {
                 submitButton.value = originalText;
             } else {
@@ -41,6 +44,8 @@ if (form) {
             submitButton.removeAttribute('disabled');
             changed_form = false;
         });
+
+        return response;
     }
 
     if (submitButton) {
@@ -62,6 +67,14 @@ if (form) {
             e.returnValue = '';
         }
     })
+
+    var saveTrigger = function () {
+        saveForm().res(function () {
+            setTimeout(saveTrigger, TIMEOUT * 1000);
+        });
+    };
+
+    window.setTimeout(saveTrigger ,TIMEOUT * 1000);
 }
 
 
