@@ -34,8 +34,33 @@ if (form) {
         }
 
         const w = wretch().content("application/x-www-form-urlencoded");
-        const response = w.url(form.getAttribute('action')).body(serialize(form) + '&action_saveobject=Save&ajax=1').post();
-        response.res(function (data) {
+        const response = w.url(form.getAttribute('action'))
+            .body(serialize(form) + '&action_saveobject=Save&ajax=1')
+            .headers({'Accept': 'application/json'})
+            .post();
+
+        response.json(function (data) {
+            let errors = document.getElementsByClassName('FormError');
+            for (let i = 0; i < errors.length; i++) {
+                errors[i].remove();
+            }
+
+            if (!data.success && data.length > 0) {
+                // we might be errors
+                for (var i = 0; i < data.length; i++) {
+                    // try and find the holder, and add an error div
+                    let holderName = 'Form_AuthoringForm_' + data[i].fieldName + '_Holder';
+                    let fieldElem = document.getElementById(holderName);
+                    if (fieldElem) {
+                        let errorMessage = document.createElement('div');
+                        errorMessage.className = 'FormError ' + data[i]['messageType'];
+                        errorMessage.innerHTML = data[i].message;
+                        fieldElem.appendChild(errorMessage);
+                    }
+                }
+            } else {
+
+            }
             if (submitButton.nodeName.toUpperCase() == 'INPUT') {
                 submitButton.value = originalText;
             } else {
@@ -43,6 +68,13 @@ if (form) {
             }
             submitButton.removeAttribute('disabled');
             changed_form = false;
+        }).catch(function (err) {
+            if (submitButton.nodeName.toUpperCase() == 'INPUT') {
+                submitButton.value = 'Save failed';
+            } else {
+                submitButton.innerHTML = 'Save failed';
+            }
+            submitButton.removeAttribute('disabled');
         });
 
         return response;

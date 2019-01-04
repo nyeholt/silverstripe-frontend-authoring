@@ -166,7 +166,7 @@ class FrontendAuthoringController extends Extension
             $this->analyseContentUpdates($object, $changed);
             $object->write();
         } catch (ValidationException $ve) {
-            $form->sessionMessage("Could not upload file: " . $ve->getMessage(), 'bad');
+            $form->sessionMessage("Could not save: " . $ve->getMessage(), 'bad');
             $this->redirect($this->data()->Link());
             return;
         }
