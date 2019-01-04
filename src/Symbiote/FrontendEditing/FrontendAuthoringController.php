@@ -267,7 +267,7 @@ class FrontendAuthoringController extends Extension
                 if ($file && $file->ID) {
                     $el->setAttribute('src', $file->getURL());
                     $el->setAttribute('data-id', $file->ID);
-                    $el->setAttribute('data-shortcode', 'image');
+                    // $el->setAttribute('data-shortcode', 'image');
                 }
                 if (file_exists($tempFilePath)) {
                     @unlink($tempFile);
