@@ -77,6 +77,7 @@ class FrontendAuthoringController extends Extension
         Versioned::set_stage('Stage');
 
         Requirements::javascript('symbiote/silverstripe-frontend-authoring: client/script/wretch-1.4.2.min.js');
+        Requirements::javascript('symbiote/silverstripe-frontend-authoring: client/script/file-uploads.js');
         Requirements::javascript('symbiote/silverstripe-frontend-authoring: client/script/authoring.js');
 
 

@@ -36,7 +36,7 @@ if (form) {
         const w = wretch().content("application/x-www-form-urlencoded");
         const response = w.url(form.getAttribute('action'))
             .body(serialize(form) + '&action_saveobject=Save&ajax=1')
-            .headers({'Accept': 'application/json'})
+            .headers({ 'Accept': 'application/json' })
             .post();
 
         response.json(function (data) {
@@ -106,8 +106,12 @@ if (form) {
         });
     };
 
-    window.setTimeout(saveTrigger ,TIMEOUT * 1000);
+    window.setTimeout(saveTrigger, TIMEOUT * 1000);
+
+    initFileUpload();
 }
+
+
 
 
 
