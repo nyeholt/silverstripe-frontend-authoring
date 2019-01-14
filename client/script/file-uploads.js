@@ -16,6 +16,11 @@ function initFileUpload() {
         }
 
         let fieldState = JSON.parse(fileField.getAttribute('data-state'));
+        FileState.fields[fieldState.name] = {
+            id: fieldState.id,
+            name: fieldState.name,
+            files: []
+        };
         if (fieldState && fieldState.data && fieldState.data.files && fieldState.data.files.length) {
             var myFiles = [];
             for (var i = 0; i < fieldState.data.files.length; i++) {
@@ -27,11 +32,7 @@ function initFileUpload() {
                 };
                 myFiles.push(entry);
             }
-            FileState.fields[fieldState.name] = {
-                id: fieldState.id,
-                name: fieldState.name,
-                files: myFiles
-            };
+            FileState.fields[fieldState.name].files = myFiles;
         }
 
         let uploadUrl = fieldInfo.data.createFileEndpoint.url;
@@ -90,6 +91,7 @@ function initFileUpload() {
                         request.upload.addEventListener('progress', function (e) {
                             var percent_complete = (e.loaded / e.total) * 100;
                             // Percentage of upload completed
+                            var current = FileState.fields[fieldState.name];
                             current.files[addIndex].percent = percent_complete.toFixed(0);
                             renderFiles();
                         });
@@ -122,7 +124,9 @@ function renderFiles() {
 
             var placeholder = field.querySelector('.entwine-placeholder');
             if (!placeholder) {
-                return;
+                placeholder = document.createElement('div');
+                placeholder.className = 'entwine-placeholder';
+                field.prepend(placeholder);
             }
 
             while (placeholder.firstChild) {
@@ -151,14 +155,17 @@ function renderFiles() {
                 thumb.className = 'FileUpload__ListItem__Thumb';
 
                 // add in our hidden fields, then list each item
-                var input = document.createElement('input');
-                input.setAttribute('type', 'hidden');
-                input.setAttribute('name', fileData.name + '[Files][]');
-                input.setAttribute('value', thisFile.id);
+                if (thisFile.id) {
+                    var input = document.createElement('input');
+                    input.setAttribute('type', 'hidden');
+                    input.setAttribute('name', fileData.name + '[Files][]');
+                    input.setAttribute('value', thisFile.id);
+                    holder.appendChild(input);
+                }
+
 
                 holder.appendChild(thumb);
                 holder.appendChild(label);
-                holder.appendChild(input);
 
                 placeholder.appendChild(holder);
             });
