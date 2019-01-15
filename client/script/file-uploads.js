@@ -136,23 +136,22 @@ function renderFiles() {
             // iterate the files now
             fileData.files.forEach(function (thisFile) {
                 var holder = document.createElement('div');
-                holder.class = 'FileUpload__ListItem';
+                holder.classList.add('Attachment');
 
                 var label = document.createElement('span');
-                label.className = 'FileUpload__ListItem__Label';
+                label.className = 'Attachment__Label';
                 label.innerHTML = thisFile.label + (thisFile.percent ? ' - ' + thisFile.percent + '%' : '');
 
                 var thumb = null;
                 if (thisFile.thumb) {
                     var thumb = document.createElement('img');
                     thumb.src = thisFile.thumb;
-                    thumb.setAttribute('width', '32');
                 } else {
                     var thumb = document.createElement('svg');
                     thumb.setAttribute('viewBox', '0 0 8 8');
                     thumb.innerHTML = '<path d="M0 0v1h8v-1h-8zm4 2l-3 3h2v3h2v-3h2l-3-3z"></path>';
                 }
-                thumb.className = 'FileUpload__ListItem__Thumb';
+                thumb.className = 'Attachment__Thumb';
 
                 // add in our hidden fields, then list each item
                 if (thisFile.id) {
@@ -161,11 +160,42 @@ function renderFiles() {
                     input.setAttribute('name', fileData.name + '[Files][]');
                     input.setAttribute('value', thisFile.id);
                     holder.appendChild(input);
-                }
 
+                }
 
                 holder.appendChild(thumb);
                 holder.appendChild(label);
+
+                if (thisFile.id) {
+                    var actions = document.createElement('span');
+                    actions.classList.add('Attachment__Actions');
+
+                    var deleteLink = document.createElement('a');
+                    deleteLink.setAttribute('href', '#');
+                    deleteLink.setAttribute('data-id', thisFile.id);
+                    deleteLink.setAttribute('data-field', fieldName);
+                    deleteLink.innerHTML = 'Remove this file';
+                    deleteLink.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        if (confirm("Are you sure? This does not delete the underlying file, just the reference.")) {
+                            var id = 0;
+                            if (id = this.getAttribute('data-id')) {
+                                // remove the file.
+                                var fromField = this.getAttribute('data-field');
+
+                                var fieldData = FileState.fields[fromField];
+                                var newFiles = fieldData.files.filter(function (item) {
+                                    return item.id != id;
+                                })
+                                FileState.fields[fromField].files = newFiles;
+                                setTimeout(renderFiles, 200);
+                            }
+                        }
+                    })
+                    actions.appendChild(deleteLink);
+
+                    holder.appendChild(actions);
+                }
 
                 placeholder.appendChild(holder);
             });
