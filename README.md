@@ -21,7 +21,18 @@ composer require symbiote/silverstripe-frontend-authoring:~1.0
 
 ## Documentation
 
-After installing the module, trigger frontend editing by appending `/edit` to the current URL. 
+Enable the module by adding the following config to your project
+
+```
+---
+Name: authoring_configuration
+---
+PageController:
+  extensions:
+    - Symbiote\FrontendEditing\FrontendAuthoringController
+```
+
+After enabling the module, trigger frontend editing by appending `/edit` to the current URL. 
 
 In your page class, ensure you have a `getFrontEndFields` method declared that returns
 fields appropriate for editing your content. 
