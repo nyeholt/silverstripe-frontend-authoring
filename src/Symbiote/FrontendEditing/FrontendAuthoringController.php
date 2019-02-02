@@ -113,7 +113,7 @@ class FrontendAuthoringController extends Extension
 
         $form = Form::create($this->owner, 'AuthoringForm', $fields, $actions);
 
-        $this->owner->extend('updateFrontendAuthoringForm', $form);
+        $this->owner->invokeWithExtensions('updateFrontendAuthoringForm', $form);
 
         if ($object) {
             $form->loadDataFrom($object);
