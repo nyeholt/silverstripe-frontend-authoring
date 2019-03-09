@@ -24,6 +24,9 @@ use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Image;
 use SilverStripe\Assets\Folder;
 use SilverStripe\View\Requirements;
+use Symbiote\AdvancedWorkflow\Extensions\WorkflowApplicable;
+use Symbiote\AdvancedWorkflow\Services\WorkflowService;
+use Symbiote\AdvancedWorkflow\DataObjects\WorkflowDefinition;
 
 
 class FrontendAuthoringController extends Extension
@@ -37,9 +40,7 @@ class FrontendAuthoringController extends Extension
     /**
      * What types should child pages be created as, for a given type?
      */
-    private static $page_create_types = [
-
-    ];
+    private static $page_create_types = [];
 
     /**
      * Where should pages be created? as children or siblings?
@@ -100,12 +101,12 @@ class FrontendAuthoringController extends Extension
         $fields->push(HiddenField::create('ID', 'ID', $object->ID));
 
         $actions = FieldList::create([
+            FormAction::create('saveobject', 'Save Changes'),
             FormAction::create('done', 'Close without saving'),
-            FormAction::create('saveobject', 'Save Changes')
         ]);
 
         // and a publish
-        if ($object->hasExtension(Versioned::class)) {
+        if ($object && $object->hasExtension(Versioned::class) && $object->canPublish()) {
             $actions->push(FormAction::create('publishobject', 'Save and Publish'));
         }
 
@@ -113,10 +114,84 @@ class FrontendAuthoringController extends Extension
 
         $form = Form::create($this->owner, 'AuthoringForm', $fields, $actions);
 
+        if ($validator) {
+            $form->setValidator($validator);
+        }
+
         $this->owner->invokeWithExtensions('updateFrontendAuthoringForm', $form);
+
+
+        if ($object && $object->hasExtension(WorkflowApplicable::class)) {
+            $definition = $object->getWorkflowService()->getDefinitionFor($object);
+            if ($definition) {
+                $form->setRequestHandler(FrontendWorkflowFormSubmissionHandler::create($form));
+                $this->addWorkflowDetail($form, $object);
+            }
+        }
 
         if ($object) {
             $form->loadDataFrom($object);
+        }
+
+        return $form;
+    }
+
+    protected function addWorkflowDetail(Form $form, DataObject $object)
+    {
+        $svc            = Injector::inst()->get(WorkflowService::class);
+        $active         = $svc->getWorkflowFor($object);
+
+        if (!$active) {
+            // add in the 'start workflow' button
+            $definitions = $object->getWorkflowService()->getDefinitionsFor($object);
+            if ($definitions) {
+                foreach ($definitions as $definition) {
+                    if ($definition->getInitialAction() && $object->canEdit()) {
+                        $action = FormAction::create(
+                            "startworkflow-{$definition->ID}",
+                            $definition->InitialActionButtonText ?
+                                $definition->InitialActionButtonText : $definition->getInitialAction()->Title
+                        )
+                            ->addExtraClass('start-workflow')
+                            ->setAttribute('data-workflow', $definition->ID)
+                            ->addExtraClass('btn-primary');
+
+                        $form->Actions()->push($action);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        $wfFields     = $active->getFrontEndWorkflowFields();
+        $wfActions    = $active->getFrontEndWorkflowActions();
+        $wfValidator  = $active->getFrontEndRequiredFields();
+
+        //Get DataObject for Form (falls back to ContextObject if not defined in WorkflowAction)
+        $wfDataObject = $active->getFrontEndDataObject();
+
+        // set any requirements spcific to this contextobject
+        $active->setFrontendFormRequirements();
+
+        // hooks for decorators
+        $object->extend('updateFrontEndWorkflowFields', $wfFields);
+        $object->extend('updateFrontEndWorkflowActions', $wfActions);
+        $object->extend('updateFrontEndRequiredFields', $wfValidator);
+        $object->extend('updateFrontendFormRequirements');
+
+        $form->addExtraClass("FrontendWorkflowForm");
+
+        foreach ($wfFields as $field) {
+            $form->Fields()->push($field);
+        }
+
+        foreach ($wfActions as $action) {
+            $form->Actions()->push($action);
+        }
+
+        if ($wfDataObject) {
+            $form->loadDataFrom($wfDataObject);
         }
 
         return $form;
@@ -273,7 +348,6 @@ class FrontendAuthoringController extends Extension
                 if (file_exists($tempFilePath)) {
                     @unlink($tempFile);
                 }
-
             }
         }
 
