@@ -24,6 +24,9 @@ use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Image;
 use SilverStripe\Assets\Folder;
 use SilverStripe\View\Requirements;
+use Symbiote\AdvancedWorkflow\Extensions\WorkflowApplicable;
+use Symbiote\AdvancedWorkflow\Services\WorkflowService;
+use Symbiote\AdvancedWorkflow\DataObjects\WorkflowDefinition;
 
 
 class FrontendAuthoringController extends Extension
@@ -31,15 +34,15 @@ class FrontendAuthoringController extends Extension
 
     private static $allowed_actions = [
         'edit' => 'CMS_ACCESS_CMSMain',
+        'runworkflow' => 'CMS_ACCESS_CMSMain',
         'AuthoringForm' => 'CMS_ACCESS_CMSMain',
+        'WorkflowForm' =>  'CMS_ACCESS_CMSMain',
     ];
 
     /**
      * What types should child pages be created as, for a given type?
      */
-    private static $page_create_types = [
-
-    ];
+    private static $page_create_types = [];
 
     /**
      * Where should pages be created? as children or siblings?
@@ -62,14 +65,32 @@ class FrontendAuthoringController extends Extension
         }
 
         $object = $this->owner->data();
+        $form = null;
 
-        if (!$object->canEdit()) {
-            return $this->owner->httpError(403);
+        if (!$object->canEdit() && $object->hasExtension(WorkflowApplicable::class)) {
+            // if we've got workflow applied, we can still show the workflow form
+            // if it's an assigned user
+            if ($object->canEditWorkflow()) {
+                $form = $this->WorkflowForm();
+            } else {
+                $form = "No access";
+            }
+        } else {
+            $form = $this->AuthoringForm();
         }
 
         return $this->owner->customise([
-            'Form' => $this->AuthoringForm()
+            'Form' => $form
         ])->renderWith(['FrontendAuthoringEdit_edit', 'Page']);
+    }
+
+    public function WorkflowForm()
+    {
+        $form = Form::create($this->owner, 'WorkflowForm', FieldList::create(), FieldList::create());
+
+        $this->addWorkflowDetail($form, $this->owner->data());
+
+        return $form;
     }
 
     public function AuthoringForm()
@@ -100,12 +121,12 @@ class FrontendAuthoringController extends Extension
         $fields->push(HiddenField::create('ID', 'ID', $object->ID));
 
         $actions = FieldList::create([
+            FormAction::create('saveobject', 'Save Changes'),
             FormAction::create('done', 'Close without saving'),
-            FormAction::create('saveobject', 'Save Changes')
         ]);
 
         // and a publish
-        if ($object->hasExtension(Versioned::class)) {
+        if ($object && $object->hasExtension(Versioned::class) && $object->canPublish()) {
             $actions->push(FormAction::create('publishobject', 'Save and Publish'));
         }
 
@@ -113,7 +134,14 @@ class FrontendAuthoringController extends Extension
 
         $form = Form::create($this->owner, 'AuthoringForm', $fields, $actions);
 
+        if ($validator) {
+            $form->setValidator($validator);
+        }
+
         $this->owner->invokeWithExtensions('updateFrontendAuthoringForm', $form);
+
+        $this->addWorkflowDetail($form, $object);
+
 
         if ($object) {
             $form->loadDataFrom($object);
@@ -122,9 +150,113 @@ class FrontendAuthoringController extends Extension
         return $form;
     }
 
+    protected function addWorkflowDetail(Form $form, DataObject $object)
+    {
+
+        if (!$object || !$object->hasExtension(WorkflowApplicable::class)) {
+            return;
+        }
+
+        $definition = $object->getWorkflowService()->getDefinitionFor($object);
+        if (!$definition) {
+            return;
+        }
+
+        $form->setRequestHandler(FrontendWorkflowFormSubmissionHandler::create($form));
+        $svc            = Injector::inst()->get(WorkflowService::class);
+        $active         = $svc->getWorkflowFor($object);
+
+        if (!$active) {
+            // add in the 'start workflow' button
+            $definitions = $object->getWorkflowService()->getDefinitionsFor($object);
+            if ($definitions) {
+                foreach ($definitions as $definition) {
+                    if ($definition->getInitialAction() && $object->canEdit()) {
+                        $action = FormAction::create(
+                            "startworkflow-{$definition->ID}",
+                            $definition->InitialActionButtonText ?
+                                $definition->InitialActionButtonText : $definition->getInitialAction()->Title
+                        )
+                            ->addExtraClass('start-workflow')
+                            ->setAttribute('data-workflow', $definition->ID)
+                            ->addExtraClass('btn-primary');
+
+                        $form->Actions()->push($action);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        $wfFields     = $active->getFrontEndWorkflowFields();
+        $wfActions    = $active->getFrontEndWorkflowActions();
+        $wfValidator  = $active->getFrontEndRequiredFields();
+
+        //Get DataObject for Form (falls back to ContextObject if not defined in WorkflowAction)
+        $wfDataObject = $active->getFrontEndDataObject();
+
+        // set any requirements spcific to this contextobject
+        $active->setFrontendFormRequirements();
+
+        // hooks for decorators
+        $object->extend('updateFrontEndWorkflowFields', $wfFields);
+        $object->extend('updateFrontEndWorkflowActions', $wfActions);
+        $object->extend('updateFrontEndRequiredFields', $wfValidator);
+        $object->extend('updateFrontendFormRequirements');
+
+        $form->addExtraClass("FrontendWorkflowForm");
+
+        foreach ($wfFields as $field) {
+            $form->Fields()->push($field);
+        }
+
+        foreach ($wfActions as $action) {
+            $form->Actions()->push($action);
+        }
+
+        if ($wfDataObject) {
+            $form->loadDataFrom($wfDataObject);
+        }
+
+        return $form;
+    }
+
     public function done()
     {
         return $this->owner->redirect($this->owner->Link());
+    }
+
+    /**
+     * Runs a workflow action / transition
+     */
+    public function runworkflow($data, Form $form, HTTPRequest $req)
+    {
+        if ($form->getName() !== 'WorkflowForm') {
+            $this->processForm($data, $form, $req);
+        }
+
+        $object = $this->owner->data();
+        if (isset($data['start_workflow'])) {
+            $defId = $data['start_workflow'];
+            $definitions = $object->getWorkflowService()->getDefinitionsFor($object);
+            foreach ($definitions as $def) {
+                if ($def->ID == $defId) {
+                    $svc = Injector::inst()->get(WorkflowService::class);
+                    $svc->startWorkflow($object, $defId);
+                }
+            }
+        } else if (isset($data['TransitionID'])) {
+            $active = $object->getWorkflowInstance();
+            if ($active && $active->canEdit()) {
+                // because the frontend workflow fields remap this to avoid field conflicts
+                if (isset($data['WorkflowActionInstanceComment'])) {
+                    $data['Comment'] = $data['WorkflowActionInstanceComment'];
+                }
+                $active->updateWorkflow($data);
+            }
+        }
+        return $this->owner->redirect($this->owner->AuthoringLink());
     }
 
     public function saveobject($data, Form $form, HTTPRequest $req)
@@ -273,7 +405,6 @@ class FrontendAuthoringController extends Extension
                 if (file_exists($tempFilePath)) {
                     @unlink($tempFile);
                 }
-
             }
         }
 
