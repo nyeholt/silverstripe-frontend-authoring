@@ -9,9 +9,7 @@ use SilverStripe\Control\HTTPRequest;
 class FrontendWorkflowFormSubmissionHandler extends FormRequestHandler
 {
     private static $allowed_actions = array(
-        'handleField',
         'httpSubmission',
-        'forTemplate',
     );
 
     public function httpSubmission($request)
@@ -20,20 +18,27 @@ class FrontendWorkflowFormSubmissionHandler extends FormRequestHandler
 
         $newVars = [];
 
+        $workflowDefId = 0;
+        $transitionId = 0;
+
         foreach ($vars as $name => $val) {
             if (strpos($name, 'action_startworkflow') !== false) {
                 $workflowDefId = str_replace('action_startworkflow-', '', $name);
                 $newVars['start_workflow'] = $workflowDefId;
+                $newVars['action_runworkflow'] = 1;
             } else if (strpos($name, 'action_transition') !== false) {
-                $transition = str_replace('action_startworkflow_', '', $name);
-                $newVars['workflow_transition'] = $transition;
+                $transitionId = str_replace('action_transition_', '', $name);
+                $newVars['TransitionID'] = $transitionId;
+                $newVars['action_runworkflow'] = 1;
             } else {
                 $newVars[$name] = $val;
             }
         }
 
         $newRequest = $this->recreateRequest($request, $newVars);
-        return parent::httpSubmission($newRequest);
+        $result = parent::httpSubmission($newRequest);
+
+        return $result;
     }
 
     /**
