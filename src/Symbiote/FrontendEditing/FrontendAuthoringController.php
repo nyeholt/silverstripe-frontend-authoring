@@ -86,7 +86,14 @@ class FrontendAuthoringController extends Extension
 
     public function WorkflowForm()
     {
-        $form = Form::create($this->owner, 'WorkflowForm', FieldList::create(), FieldList::create());
+        $authoring = $this->AuthoringForm();
+        $fields = FieldList::create();
+        if ($authoring) {
+            $fields = $authoring->Fields();
+            $fields = $fields->makeReadonly();
+        }
+
+        $form = Form::create($this->owner, 'WorkflowForm', $fields, FieldList::create());
 
         $this->addWorkflowDetail($form, $this->owner->data());
 
