@@ -4,3 +4,9 @@
 # PageController:
 #   extensions:
 #     - Symbiote\FrontendEditing\FrontendAuthoringController
+---
+Name: authoring_frontend_objects
+---
+Symbiote\FrontendObjects\Page\ObjectCreatorPageController:
+  extensions:
+    - Symbiote\FrontendEditing\FrontendObjectsAuthoringExtension
