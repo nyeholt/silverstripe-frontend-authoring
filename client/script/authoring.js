@@ -39,6 +39,17 @@ if (form) {
             .headers({ 'Accept': 'application/json' })
             .post();
 
+
+        response.res(function (res) {
+            var reload = res.headers.get('X-Authoring-Reload');
+            if (reload) {
+                if (confirm("These updates require a page reload - reload now?")) {
+                    changed_form = false;
+                    location.reload();
+                }
+            }
+        });
+
         response.json(function (data) {
             let errors = document.getElementsByClassName('FormError');
             for (let i = 0; i < errors.length; i++) {
@@ -110,8 +121,6 @@ if (form) {
 
     initFileUpload();
 }
-
-
 
 
 

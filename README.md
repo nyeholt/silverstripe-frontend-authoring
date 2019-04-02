@@ -32,7 +32,7 @@ PageController:
     - Symbiote\FrontendEditing\FrontendAuthoringController
 ```
 
-After enabling the module, trigger frontend editing by appending `/edit` to the current URL. 
+After enabling the module, trigger frontend editing by appending `/edit?stage=Stage` to the current URL. 
 
 In your page class, ensure you have a `getFrontEndFields` method declared that returns
 fields appropriate for editing your content. 
@@ -59,3 +59,9 @@ MyController:
     Symbiote\Page\MyPage: ParentID
 ```
 
+If your editing save process requires a page reload after saving (say, you modify the content
+via the page edit) then output the X-Authoring-Reload header with a value of 1
+
+```
+Controller::has_curr() ? Controller::curr()->getResponse()->addHeader('X-Authoring-Reload', 1) : false;    
+```
