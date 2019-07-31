@@ -13,7 +13,6 @@ use SilverStripe\Security\Member;
 use SilverStripe\Forms\HiddenField;
 use SilverStripe\Forms\FormAction;
 use SilverStripe\Control\HTTPRequest;
-use SilverStripe\Forms\CheckboxField;
 use SilverStripe\ORM\DataObject;
 use SilverStripe\ORM\FieldType\DBHTMLText;
 use SilverStripe\View\Parsers\URLSegmentFilter;
@@ -22,12 +21,11 @@ use SilverStripe\View\Parsers\HTMLValue;
 use SilverStripe\Assets\Upload;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Assets\Image;
-use SilverStripe\Assets\Folder;
 use SilverStripe\View\Requirements;
 use Symbiote\AdvancedWorkflow\Extensions\WorkflowApplicable;
 use Symbiote\AdvancedWorkflow\Services\WorkflowService;
-use Symbiote\AdvancedWorkflow\DataObjects\WorkflowDefinition;
-
+use SilverStripe\Security\Security;
+use SilverStripe\ORM\ArrayList;
 
 class FrontendAuthoringController extends Extension
 {
@@ -67,13 +65,18 @@ class FrontendAuthoringController extends Extension
         $object = $this->owner->data();
         $form = null;
 
+        $currentUser = Security::getCurrentUser();
+
         if (!$object->canEdit() && $object->hasExtension(WorkflowApplicable::class)) {
             // if we've got workflow applied, we can still show the workflow form
             // if it's an assigned user
-            if ($object->canEditWorkflow()) {
+            $instance = $object->getWorkflowInstance();
+            $members = $instance ? $instance->getAssignedMembers() : ArrayList::create();
+            if ($currentUser && $members && $members->find('ID', $currentUser->ID)) {
                 $form = $this->WorkflowForm();
             } else {
-                $form = "No access";
+                // redirect to the non-edit version of the page.
+                return $this->owner->redirect($object->Link());
             }
         } else {
             $form = $this->AuthoringForm();
