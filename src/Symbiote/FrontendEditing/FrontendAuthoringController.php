@@ -26,15 +26,16 @@ use Symbiote\AdvancedWorkflow\Extensions\WorkflowApplicable;
 use Symbiote\AdvancedWorkflow\Services\WorkflowService;
 use SilverStripe\Security\Security;
 use SilverStripe\ORM\ArrayList;
+use SilverStripe\AssetAdmin\Forms\UploadField;
 
 class FrontendAuthoringController extends Extension
 {
 
     private static $allowed_actions = [
-        'edit' => 'CMS_ACCESS_CMSMain',
-        'runworkflow' => 'CMS_ACCESS_CMSMain',
+        'edit' => '->canWorkflowOrEdit',
+        'runworkflow' => '->canWorkflowOrEdit',
         'AuthoringForm' => 'CMS_ACCESS_CMSMain',
-        'WorkflowForm' =>  'CMS_ACCESS_CMSMain',
+        'WorkflowForm' =>  '->canWorkflowOrEdit',
     ];
 
     /**
@@ -54,6 +55,29 @@ class FrontendAuthoringController extends Extension
         $link = $this->owner->Link();
 
         return Controller::join_links($link, 'edit');
+    }
+
+    public function canWorkflowOrEdit() {
+        $object = $this->owner->data();
+        $form = null;
+
+        $currentUser = Security::getCurrentUser();
+
+        $workflowed = $object->hasExtension(WorkflowApplicable::class);
+        $canEdit = $object->canEdit();
+
+        if ($canEdit) {
+            return true;
+        }
+
+        if ($workflowed) {
+            $instance = $object->getWorkflowInstance();
+            $members = $instance ? $instance->getAssignedMembers() : ArrayList::create();
+            if ($currentUser && $members && $members->find('ID', $currentUser->ID)) {
+                return true;
+            }
+        }
+
     }
 
     public function edit()
@@ -94,6 +118,12 @@ class FrontendAuthoringController extends Extension
         if ($authoring) {
             $fields = $authoring->Fields();
             $fields = $fields->makeReadonly();
+
+            foreach ($fields as $f) {
+                if ($f instanceof UploadField) {
+                    $fields->remove($f);
+                }
+            }
         }
 
         $form = Form::create($this->owner, 'WorkflowForm', $fields, FieldList::create());
@@ -266,7 +296,14 @@ class FrontendAuthoringController extends Extension
                 $active->updateWorkflow($data);
             }
         }
-        return $this->owner->redirect($this->owner->AuthoringLink());
+
+        // the user may or may not be able to edit again; check before redirecting
+        $link = $this->owner->Link();
+        if ($this->canWorkflowOrEdit()) {
+            $link = $this->owner->AuthoringLink();
+        }
+
+        return $this->owner->redirect($link);
     }
 
     public function saveobject($data, Form $form, HTTPRequest $req)
